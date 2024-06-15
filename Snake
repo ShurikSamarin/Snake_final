@@ -1,0 +1,230 @@
+#include <ncurses.h>
+#include <stdlib.h>
+#include <time.h>
+#define MAX_X 30
+#define MAX_Y 30
+#define SEED_NUMBER 10
+#define FOOD_EXPIRE_SECONDS 5
+#define UP_ARROW_KEY 1
+#define DOWN_ARROW_KEY 2
+#define LEFT_ARROW_KEY 3
+#define RIGHT_ARROW_KEY 4
+#define GRID_WIDTH 30
+#define GRID_HEIGHT 30
+#define MAX_FOOD 10
+#define LEVEL_WIDTH 30
+#define LEVEL_HEIGHT 30
+struct snake {
+    int x, y;
+    int direction;
+    struct snake *next;
+};
+struct food {
+    int x, y;
+    int enable;
+};
+void initHead(struct snake *head) {
+    head->x = MAX_X / 2;  // Устанавливаем начальное положение головы по оси X
+    head->y = MAX_Y / 2;  // Устанавливаем начальное положение головы по оси Y
+    head->next = NULL;    // Устанавливаем указатель на следующий элемент как NULL, так как это голова
+}
+void initTail(struct snake *t[], size_t size) {
+    for (size_t i = 0; i < size; i++) {
+        t[i] = (struct snake *)malloc(sizeof(struct snake));  // Выделяем память для каждого элемента хвоста
+        t[i]->x = -1;  // Устанавливаем начальное положение хвоста вне поля (-1, -1)
+        t[i]->y = -1;
+        t[i]->next = (i == size - 1) ? NULL : t[i + 1];  // Устанавливаем указатель на следующий элемент
+    }
+}
+void init(struct snake *head, struct snake *tail[], size_t size) {
+    initHead(head);  // Инициализируем голову
+    head->next = tail[0];  // Устанавливаем указатель на первый элемент хвоста
+
+    for (size_t i = 0; i < size; i++) {
+        tail[i] = (struct snake *)malloc(sizeof(struct snake));  // Выделяем память для каждого элемента хвоста
+        tail[i]->x = -1;  // Устанавливаем начальное положение хвоста вне поля (-1, -1)
+        tail[i]->y = -1;
+        tail[i]->next = (i == size - 1) ? NULL : tail[i + 1];  // Устанавливаем указатель на следующий элемент
+    }
+}
+void go(struct snake *head, char direction) {
+    switch(direction) {
+        case 'W':
+            head->y--; // Движение вверх уменьшает координату y
+            break;
+        case 'A':
+            head->x--; // Движение влево уменьшает координату x
+            break;
+        case 'S':
+            head->y++; // Движение вниз увеличивает координату y
+            break;
+        case 'D':
+            head->x++; // Движение вправо увеличивает координату x
+            break;
+        default:
+            // Добавьте обработку неправильного ввода, если нужно
+            break;
+    }
+}
+//void putFood(struct food f[], int seed_number) {
+    // Расстановка еды на поле
+//}
+void putFoodSeed(struct food *fp) {
+    // Расстановка зерна
+    srand(time(NULL)); // Инициализация генератора случайных чисел
+
+    fp->x = rand() % GRID_WIDTH; // Случайная позиция по оси X
+    fp->y = rand() % GRID_HEIGHT; // Случайная позиция по оси Y
+    fp->enable = 1; // Включаем еду
+}
+void refreshFood(struct food f[], int seed_number) {
+    // Обновление еды на поле
+    for (int i = 0; i < seed_number; i++) {
+        if (!f[i].enable) {
+            f[i].x = rand() % GRID_WIDTH; // Новая случайная позиция по оси X
+            f[i].y = rand() % GRID_HEIGHT; // Новая случайная позиция по оси Y
+            f[i].enable = 1; // Включаем еду
+        }
+    }
+}
+int haveEat(struct snake *head, struct food f[]) {
+    // Проверка на наличие съеденной еды
+    for (int i = 0; i < MAX_FOOD; i++) {
+        if (f[i].enable && head->x == f[i].x && head->y == f[i].y) {
+            f[i].enable = 0; // Отключаем еду, так как она съедена
+            return 1; // Возвращаем 1, чтобы указать, что змейка съела еду
+        }
+    }
+    return 0; // Змейка не съела еду
+}
+void goTail(struct snake *head) {
+    struct snake *current = head;
+    struct snake *prev = NULL;
+
+    // Перемещаем все элементы хвоста, кроме головы
+    while (current->next != NULL) {
+        prev = current;
+        current = current->next;
+        current->x = prev->x;
+        current->y = prev->y;
+    }
+
+    // Перемещаем голову
+    switch (head->direction) {
+        case UP_ARROW_KEY:
+            head->y--;
+            break;
+        case DOWN_ARROW_KEY:
+            head->y++;
+            break;
+        case LEFT_ARROW_KEY:
+            head->x--;
+            break;
+        case RIGHT_ARROW_KEY:
+            head->x++;
+            break;
+    }
+}
+
+int main() {
+    initscr();  // Инициализация экрана ncurses
+    noecho();   // Отключение отображения вводимых символов
+
+    struct snake *head = malloc(sizeof(struct snake));
+    struct snake *tail[10];  // Пример: массив из 10 элементов для хвоста
+    init(head, tail, 10);    // Инициализируем змейку
+
+    struct food food[SEED_NUMBER];
+    initFood(food);
+    putFood(food, SEED_NUMBER);
+
+    int ch;
+    while ((ch = getch()) != 'q') {  // Пример: выход при нажатии клавиши 'q'
+        changeDirection(head, ch);  // Изменение направления змейки
+        go(head, ch);              // Движение головы змейки
+        goTail(head);            // Перемещение хвоста змейки
+
+        // Проверяем, не вышла ли голова змейки за границы поля
+        if (head->x < 0 || head->x >= GRID_WIDTH || head->y < 0 || head->y >= GRID_HEIGHT) {
+            // Если голова вышла за границы, завершаем игру
+            break;
+        }
+
+        if (haveEat(head, food)) {
+            // Обработка съеденной еды
+        }
+        printLevel(head);  // Вывод информации о текущем уровне
+        refresh();         // Обновление экрана ncurses
+        napms(100);        // Задержка для плавного движения
+    }
+
+    endwin();  // Завершение работы с ncurses
+
+    return 0;
+}
+
+void changeDirection(struct snake *snake, const int key) {
+    switch(key) {
+        case UP_ARROW_KEY:
+            if (snake->direction != DOWN_ARROW_KEY) {
+                snake->direction = UP_ARROW_KEY;
+            }
+            break;
+        case DOWN_ARROW_KEY:
+            if (snake->direction != UP_ARROW_KEY) {
+                snake->direction = DOWN_ARROW_KEY;
+            }
+            break;
+        case LEFT_ARROW_KEY:
+            if (snake->direction != RIGHT_ARROW_KEY) {
+                snake->direction = LEFT_ARROW_KEY;
+            }
+            break;
+        case RIGHT_ARROW_KEY:
+            if (snake->direction != LEFT_ARROW_KEY) {
+                snake->direction = RIGHT_ARROW_KEY;
+            }
+            break;
+        default:
+            // Обработка других клавиш, если необходимо
+            break;
+    }
+}
+void initFood(struct food f[]) {
+    for (int i = 0; i < MAX_FOOD; i++) {
+        f[i].x = rand() % GRID_WIDTH;  
+        f[i].y = rand() % GRID_HEIGHT; 
+    }
+}
+void printLevel(struct snake *head) {
+    for (int i = 0; i < LEVEL_HEIGHT; i++) {
+        for (int j = 0; j < LEVEL_WIDTH; j++) {
+            int isSnakeBody = 0;
+            struct snake *current = head;
+            while (current != NULL) {
+                if (current->x == j && current->y == i) {
+                    isSnakeBody = 1;
+                    break;
+                }
+                current = current->next;
+            }
+            if (isSnakeBody) {
+                printf("X"); // Отображаем часть змеи
+            } else {
+                printf("."); // Отображаем пустое пространство
+            }
+        }
+        printf("\n"); // Переход на новую строку для следующей строки уровня
+    }
+}
+
+void putFood(struct food f[], int seed_number) {
+    // Расстановка еды на поле
+    srand(time(NULL)); // Инициализация генератора случайных чисел
+
+    for (int i = 0; i < seed_number; i++) {
+        f[i].x = rand() % GRID_WIDTH; // Случайная позиция по оси X
+        f[i].y = rand() % GRID_HEIGHT; // Случайная позиция по оси Y
+        f[i].enable = 1; // Включаем еду
+    }
+}
